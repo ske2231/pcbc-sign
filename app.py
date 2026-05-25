@@ -11,6 +11,8 @@ import os
 import uuid
 import hashlib
 import datetime
+from datetime import timezone
+import sys
 from functools import wraps
 from pathlib import Path
 from io import BytesIO
@@ -796,6 +798,81 @@ def backup_database():
         mimetype='application/x-sqlite3',
         as_attachment=True,
         download_name=f'pcbc_backup_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.db'
+    )
+
+
+# ── Health & status ─────────────────────────────────────────────────────
+
+@app.route('/health')
+def health_check():
+    """Render-compatible health endpoint. Returns 200 only if DB is reachable."""
+    try:
+        conn = get_db()
+        cursor = get_cursor(conn)
+        if IS_POSTGRES:
+            cursor.execute('SELECT 1')
+        else:
+            cursor.execute('SELECT 1')
+        cursor.fetchone()
+        conn.close()
+        return {
+            'status': 'healthy',
+            'database': 'connected',
+            'mode': 'postgresql' if IS_POSTGRES else 'sqlite',
+            'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }, 200
+    except Exception as e:
+        return {
+            'status': 'unhealthy',
+            'database': 'disconnected',
+            'error': str(e),
+            'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }, 503
+
+
+@app.route('/status')
+@login_required
+def status_page():
+    """Admin status dashboard."""
+    conn = get_db()
+    cursor = get_cursor(conn)
+
+    stats = {}
+    try:
+        cursor.execute('SELECT COUNT(*) as c FROM documents')
+        stats['total_documents'] = cursor.fetchone()['c']
+
+        cursor.execute('SELECT COUNT(*) as c FROM sign_requests')
+        stats['total_sign_requests'] = cursor.fetchone()['c']
+
+        cursor.execute("SELECT COUNT(*) as c FROM sign_requests WHERE status = 'signed'")
+        stats['signed_count'] = cursor.fetchone()['c']
+
+        cursor.execute('SELECT COUNT(*) as c FROM audit_logs')
+        stats['total_audit_logs'] = cursor.fetchone()['c']
+
+        cursor.execute('SELECT COUNT(*) as c FROM files')
+        stats['total_files'] = cursor.fetchone()['c']
+
+        cursor.execute('''
+            SELECT d.title, s.signer_name, s.signed_at
+            FROM sign_requests s
+            JOIN documents d ON s.document_id = d.id
+            WHERE s.status = 'signed'
+            ORDER BY s.signed_at DESC
+            LIMIT 5
+        ''')
+        stats['recent_signatures'] = cursor.fetchall()
+    except Exception as e:
+        stats['error'] = str(e)
+
+    conn.close()
+
+    return render_template('status.html',
+        stats=stats,
+        is_postgres=IS_POSTGRES,
+        db_url_masked='***configured***' if DATABASE_URL else 'None (SQLite)',
+        python_version=f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
     )
 
 
