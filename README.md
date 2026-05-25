@@ -38,10 +38,20 @@ Then open your browser to: **http://localhost:5000**
 1. Click **Upload New Document**
 2. Select a PDF and give it a title
 3. Click **Manage** on the document
-4. Enter a student name and click **Generate Sign Link**
-5. Copy the link and send it to your student (email, text, QR code)
+4. Enter a **student name and email**, then click **Generate Sign Link**
+5. The system **automatically emails the student** the signing link
 6. Student opens the link, reviews the PDF, and signs
 7. You see the status change to "Signed" on your dashboard
+
+### Email Notifications (SendGrid)
+When you enter a student's email and create a signing link, the app automatically sends a professional email with the signing link. To enable this:
+
+1. Create a free account at [sendgrid.com](https://sendgrid.com)
+2. Generate an API key with **Full Access** or **Restricted Access** with "Mail Send" permission
+3. Add the API key to your Render environment variables as `SENDGRID_API_KEY`
+4. Optionally change `FROM_EMAIL` (default: `documents@poncabeautycollege.edu`)
+
+SendGrid's free tier includes **100 emails/day** — plenty for a beauty college.
 
 ## Security Notes
 
@@ -62,6 +72,7 @@ ponca-sign/
 ├── venv/               # Python virtual environment
 ├── start.sh            # Linux/Mac startup script
 ├── start.bat           # Windows startup script
+├── render.yaml         # Render.com deployment config
 ├── templates/          # HTML pages
 ├── static/             # CSS and JavaScript
 └── README.md           # This file
@@ -136,7 +147,16 @@ Then create a new repo on GitHub and push.
 6. Click **Apply**
 7. Wait 2-3 minutes for deployment
 
-#### Step 4: Access Your App
+#### Step 4: Add SendGrid API Key (Optional but Recommended)
+If you want automatic email notifications:
+1. Go to [sendgrid.com](https://sendgrid.com) → create free account → Settings → API Keys → Create API Key
+2. In your Render dashboard, click your service → **Environment** tab
+3. Add a new variable:
+   - Key: `SENDGRID_API_KEY`
+   - Value: your SendGrid API key starting with `SG.`
+4. Save — Render will redeploy
+
+### Step 5: Access Your App
 Render will give you a URL like `https://pcbc-document-sign.onrender.com`
 
 **⚠️ CRITICAL RENDER NOTE:**

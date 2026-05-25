@@ -15,6 +15,13 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
+try:
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail
+    SENDGRID_AVAILABLE = True
+except ImportError:
+    SENDGRID_AVAILABLE = False
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'ponca-beauty-college-default-key-change-me')
 
@@ -33,6 +40,10 @@ SIGNED_FOLDER.mkdir(exist_ok=True)
 DEFAULT_ADMIN_HASH = generate_password_hash('ponca2024')
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
 ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH', DEFAULT_ADMIN_HASH)
+
+# Email configuration (SendGrid)
+SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
+FROM_EMAIL = os.environ.get('FROM_EMAIL', 'documents@poncabeautycollege.edu')
 
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
@@ -104,6 +115,60 @@ def log_audit(document_id, action, actor=None, details=None, ip_address=None):
     )
     conn.commit()
     conn.close()
+
+
+def send_signature_email(to_email, signer_name, document_title, sign_url):
+    """Send a signing invitation email via SendGrid. Returns True on success."""
+    if not SENDGRID_AVAILABLE or not SENDGRID_API_KEY:
+        return False
+    
+    subject = f"Document Ready for Signature — {document_title}"
+    
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; color: #1e293b; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+        <div style="background: #2563eb; color: white; padding: 1.5rem; text-align: center;">
+            <h1 style="margin: 0; font-size: 1.25rem;">Ponca City Beauty College</h1>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem;">Academy of Cosmetology, Barbering & Esthetics</p>
+        </div>
+        <div style="padding: 1.5rem; background: #ffffff;">
+            <p>Hello {signer_name or 'Student'},</p>
+            <p>You have a document ready for your electronic signature:</p>
+            <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 1rem; margin: 1rem 0;">
+                <strong>{document_title}</strong>
+            </div>
+            <p>Please review the document and sign it using the secure link below:</p>
+            <div style="text-align: center; margin: 2rem 0;">
+                <a href="{sign_url}" style="background: #2563eb; color: white; padding: 0.75rem 1.5rem; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">Review & Sign Document</a>
+            </div>
+            <p style="font-size: 0.85rem; color: #64748b;">Or copy and paste this link into your browser:<br>{sign_url}</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 1.5rem 0;">
+            <p style="font-size: 0.85rem; color: #64748b;">
+                This is a secure document signing request from Ponca City Beauty College. 
+                Your electronic signature is legally binding. If you did not expect this email, please disregard it.
+            </p>
+        </div>
+        <div style="background: #f8fafc; padding: 1rem; text-align: center; font-size: 0.8rem; color: #64748b;">
+            Ponca City Beauty College<br>
+            Secure Document Management System
+        </div>
+    </body>
+    </html>
+    """
+    
+    try:
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        message = Mail(
+            from_email=FROM_EMAIL,
+            to_emails=to_email,
+            subject=subject,
+            html_content=html_content
+        )
+        response = sg.send(message)
+        return response.status_code in (200, 201, 202)
+    except Exception as e:
+        print(f"SendGrid error: {e}")
+        return False
 
 
 def allowed_file(filename):
@@ -280,7 +345,21 @@ def create_sign_link(doc_id):
              ip_address=request.remote_addr)
     
     sign_url = url_for('sign_document', token=token, _external=True)
-    flash(f'Signing link created! URL: {sign_url}', 'success')
+    
+    # Send email if address was provided and SendGrid is configured
+    email_sent = False
+    if signer_email:
+        email_sent = send_signature_email(signer_email, signer_name, doc['title'], sign_url)
+        if email_sent:
+            flash(f'Email sent to {signer_email}! Signing link also available below.', 'success')
+            log_audit(doc_id, 'EMAIL_SENT',
+                     actor=session.get('admin_username'),
+                     details=f"Sent to: {signer_email}",
+                     ip_address=request.remote_addr)
+        else:
+            flash(f'Could not send email to {signer_email}. Please send the link manually.', 'warning')
+    else:
+        flash(f'Signing link created! URL: {sign_url}', 'success')
     
     return redirect(url_for('document_detail', doc_id=doc_id))
 
