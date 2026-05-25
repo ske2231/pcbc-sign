@@ -44,6 +44,11 @@ try:
 except ImportError:
     SENDGRID_AVAILABLE = False
 
+# ── Email / SMTP imports ────────────────────────────────────────────────
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 # ── Flask setup ─────────────────────────────────────────────────────────
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'ponca-beauty-college-default-key-change-me')
