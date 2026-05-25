@@ -864,6 +864,50 @@ def backup_database():
 
 # ── Health & status ─────────────────────────────────────────────────────
 
+@app.route('/debug-email')
+@login_required
+def debug_email():
+    """Test email configuration and show detailed diagnostics."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    results = []
+    results.append(f"SMTP_HOST: {SMTP_HOST}")
+    results.append(f"SMTP_PORT: {SMTP_PORT}")
+    results.append(f"SMTP_USER: {SMTP_USER}")
+    results.append(f"SMTP_PASSWORD: {'SET' if SMTP_PASSWORD else 'NOT SET'}")
+    results.append(f"SMTP_USE_TLS: {SMTP_USE_TLS}")
+    results.append(f"FROM_EMAIL: {FROM_EMAIL}")
+    results.append(f"SENDGRID_API_KEY: {'SET' if SENDGRID_API_KEY else 'NOT SET'}")
+    results.append("")
+
+    # Test SMTP connection
+    if SMTP_HOST and SMTP_USER and SMTP_PASSWORD:
+        try:
+            if SMTP_USE_TLS:
+                server = smtplib.SMTP(SMTP_HOST, SMTP_PORT)
+                server.set_debuglevel(1)
+                server.starttls()
+            else:
+                server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT)
+                server.set_debuglevel(1)
+
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            results.append("✅ SMTP LOGIN SUCCESS")
+            server.quit()
+        except Exception as e:
+            import traceback
+            results.append(f"❌ SMTP FAILED: {e}")
+            results.append("")
+            results.append("Full traceback:")
+            results.append(traceback.format_exc())
+    else:
+        results.append("❌ SMTP NOT CONFIGURED")
+
+    return '<pre style="font-family:monospace;white-space:pre-wrap;padding:20px">' + '\n'.join(results) + '</pre>'
+
+
 @app.route('/health')
 def health_check():
     """Render-compatible health endpoint. Returns 200 only if DB is reachable."""
