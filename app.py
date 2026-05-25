@@ -357,7 +357,36 @@ def send_signature_email(to_email, signer_name, document_title, sign_url):
         except Exception as e:
             print(f"[email] SendGrid failed: {e}")
 
-    # ── Fallback to SMTP ──────────────────────────────────────────────
+    # ── Fallback: Resend HTTP API (HTTPS, never blocked) ─────────────
+    # Render blocks SMTP port 587, so we use Resend's REST API instead
+    if SMTP_HOST == 'smtp.resend.com' and SMTP_PASSWORD:
+        try:
+            import httpx
+            resp = httpx.post(
+                'https://api.resend.com/emails',
+                headers={
+                    'Authorization': f'Bearer {SMTP_PASSWORD}',
+                    'Content-Type': 'application/json',
+                },
+                json={
+                    'from': FROM_EMAIL,
+                    'to': [to_email],
+                    'subject': subject,
+                    'html': html_content,
+                },
+                timeout=30.0,
+            )
+            if resp.status_code in (200, 202):
+                print(f"[email] Sent via Resend HTTP API to {to_email}")
+                return True
+            else:
+                print(f"[email] Resend HTTP API error {resp.status_code}: {resp.text}")
+        except Exception as e:
+            import traceback
+            print(f"[email] Resend HTTP API failed: {e}")
+            traceback.print_exc()
+
+    # ── Final fallback: SMTP (for local dev / other providers) ────────
     if SMTP_HOST and SMTP_USER and SMTP_PASSWORD:
         try:
             msg = MIMEMultipart('alternative')
