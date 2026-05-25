@@ -378,7 +378,9 @@ def send_signature_email(to_email, signer_name, document_title, sign_url):
             print(f"[email] Sent via SMTP to {to_email}")
             return True
         except Exception as e:
+            import traceback
             print(f"[email] SMTP failed: {e}")
+            traceback.print_exc()
 
     return False
 
