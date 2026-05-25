@@ -75,6 +75,7 @@ SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'true').lower() in ('1', 'true', '
 
 def get_db():
     """Return a DB connection with dict-like rows."""
+    ensure_db()
     if IS_POSTGRES:
         conn = psycopg2.connect(DATABASE_URL)
         # Return RealDictCursor by default
@@ -108,8 +109,14 @@ def last_id(cursor):
 
 
 def init_db():
-    conn = get_db()
-    cursor = get_cursor(conn)
+    # Use raw connection to avoid recursion with ensure_db() → get_db()
+    if IS_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    else:
+        conn = sqlite3.connect(DATABASE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
 
     if IS_POSTGRES:
         # PostgreSQL schema
@@ -220,7 +227,21 @@ def init_db():
     conn.close()
 
 
-init_db()
+# DB initialization is lazy — called on first request, not at import.
+# This prevents the app from crashing on startup if PostgreSQL isn't ready yet.
+_db_initialized = False
+
+
+def ensure_db():
+    """Initialize tables on first use. Safe for multiple workers."""
+    global _db_initialized
+    if _db_initialized:
+        return
+    try:
+        init_db()
+        _db_initialized = True
+    except Exception as e:
+        print(f"[db] initialization warning: {e}")
 
 
 # ── File storage helpers ────────────────────────────────────────────────
