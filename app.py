@@ -911,6 +911,38 @@ def debug_email():
         results.append(f"SENDGRID_API_KEY: {'SET' if SENDGRID_API_KEY else 'NOT SET'}")
         results.append("")
 
+        # Test Resend HTTP API
+        if SMTP_HOST == 'smtp.resend.com' and SMTP_PASSWORD:
+            try:
+                import httpx
+                resp = httpx.post(
+                    'https://api.resend.com/emails',
+                    headers={
+                        'Authorization': f'Bearer {SMTP_PASSWORD}',
+                        'Content-Type': 'application/json',
+                    },
+                    json={
+                        'from': FROM_EMAIL,
+                        'to': ['matt.janway@gmail.com'],
+                        'subject': 'PCBC Test Email',
+                        'html': '<p>This is a test from the debug endpoint.</p>',
+                    },
+                    timeout=30.0,
+                )
+                results.append(f"Resend HTTP status: {resp.status_code}")
+                results.append(f"Resend response: {resp.text}")
+                if resp.status_code in (200, 202):
+                    results.append("✅ RESEND HTTP API SUCCESS")
+                else:
+                    results.append("❌ RESEND HTTP API FAILED")
+            except Exception as e:
+                results.append(f"❌ RESEND HTTP EXCEPTION: {e}")
+                results.append(traceback.format_exc())
+        else:
+            results.append("❌ RESEND NOT CONFIGURED")
+
+        results.append("")
+
         # Test SMTP connection with short timeout
         if SMTP_HOST and SMTP_USER and SMTP_PASSWORD:
             try:
