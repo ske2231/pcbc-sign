@@ -20,6 +20,9 @@ from io import BytesIO
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, session, abort
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
+
+load_dotenv()  # Read .env file into environment variables
 
 # ── Database imports ────────────────────────────────────────────────────
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -60,6 +63,13 @@ ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH', DEFAULT_ADMIN_HASH)
 # Email config
 SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
 FROM_EMAIL = os.environ.get('FROM_EMAIL', 'documents@poncabeautycollege.edu')
+
+# SMTP fallback (use your existing school email)
+SMTP_HOST = os.environ.get('SMTP_HOST')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+SMTP_USER = os.environ.get('SMTP_USER')
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')
+SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'true').lower() in ('1', 'true', 'yes')
 
 # ── Database helpers ────────────────────────────────────────────────────
 
@@ -273,55 +283,83 @@ def log_audit(document_id, action, actor=None, details=None, ip_address=None):
     conn.close()
 
 
-def send_signature_email(to_email, signer_name, document_title, sign_url):
-    if not SENDGRID_AVAILABLE or not SENDGRID_API_KEY:
-        return False
+def _build_email_html(signer_name, document_title, sign_url):
+    return f"""\
+<html>
+<body style="font-family: Arial, sans-serif; color: #1e293b; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+    <div style="background: #2563eb; color: white; padding: 1.5rem; text-align: center;">
+        <h1 style="margin: 0; font-size: 1.25rem;">Ponca City Beauty College</h1>
+        <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem;">Academy of Cosmetology, Barbering & Esthetics</p>
+    </div>
+    <div style="padding: 1.5rem; background: #ffffff;">
+        <p>Hello {signer_name or 'Student'},</p>
+        <p>You have a document ready for your electronic signature:</p>
+        <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 1rem; margin: 1rem 0;">
+            <strong>{document_title}</strong>
+        </div>
+        <p>Please review the document and sign it using the secure link below:</p>
+        <div style="text-align: center; margin: 2rem 0;">
+            <a href="{sign_url}" style="background: #2563eb; color: white; padding: 0.75rem 1.5rem; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">Review & Sign Document</a>
+        </div>
+        <p style="font-size: 0.85rem; color: #64748b;">Or copy and paste this link into your browser:<br>{sign_url}</p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 1.5rem 0;">
+        <p style="font-size: 0.85rem; color: #64748b;">
+            This is a secure document signing request from Ponca City Beauty College.
+            Your electronic signature is legally binding. If you did not expect this email, please disregard it.
+        </p>
+    </div>
+    <div style="background: #f8fafc; padding: 1rem; text-align: center; font-size: 0.8rem; color: #64748b;">
+        Ponca City Beauty College<br>
+        Secure Document Management System
+    </div>
+</body>
+</html>"""
 
+
+def send_signature_email(to_email, signer_name, document_title, sign_url):
     subject = f"Document Ready for Signature — {document_title}"
-    html_content = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif; color: #1e293b; line-height: 1.6; max-width: 600px; margin: 0 auto;">
-        <div style="background: #2563eb; color: white; padding: 1.5rem; text-align: center;">
-            <h1 style="margin: 0; font-size: 1.25rem;">Ponca City Beauty College</h1>
-            <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem;">Academy of Cosmetology, Barbering & Esthetics</p>
-        </div>
-        <div style="padding: 1.5rem; background: #ffffff;">
-            <p>Hello {signer_name or 'Student'},</p>
-            <p>You have a document ready for your electronic signature:</p>
-            <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 1rem; margin: 1rem 0;">
-                <strong>{document_title}</strong>
-            </div>
-            <p>Please review the document and sign it using the secure link below:</p>
-            <div style="text-align: center; margin: 2rem 0;">
-                <a href="{sign_url}" style="background: #2563eb; color: white; padding: 0.75rem 1.5rem; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">Review & Sign Document</a>
-            </div>
-            <p style="font-size: 0.85rem; color: #64748b;">Or copy and paste this link into your browser:<br>{sign_url}</p>
-            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 1.5rem 0;">
-            <p style="font-size: 0.85rem; color: #64748b;">
-                This is a secure document signing request from Ponca City Beauty College.
-                Your electronic signature is legally binding. If you did not expect this email, please disregard it.
-            </p>
-        </div>
-        <div style="background: #f8fafc; padding: 1rem; text-align: center; font-size: 0.8rem; color: #64748b;">
-            Ponca City Beauty College<br>
-            Secure Document Management System
-        </div>
-    </body>
-    </html>
-    """
-    try:
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        message = Mail(
-            from_email=FROM_EMAIL,
-            to_emails=to_email,
-            subject=subject,
-            html_content=html_content
-        )
-        response = sg.send(message)
-        return response.status_code in (200, 201, 202)
-    except Exception as e:
-        print(f"SendGrid error: {e}")
-        return False
+    html_content = _build_email_html(signer_name, document_title, sign_url)
+
+    # ── Try SendGrid first ────────────────────────────────────────────
+    if SENDGRID_AVAILABLE and SENDGRID_API_KEY:
+        try:
+            sg = SendGridAPIClient(SENDGRID_API_KEY)
+            message = Mail(
+                from_email=FROM_EMAIL,
+                to_emails=to_email,
+                subject=subject,
+                html_content=html_content
+            )
+            response = sg.send(message)
+            if response.status_code in (200, 201, 202):
+                return True
+        except Exception as e:
+            print(f"[email] SendGrid failed: {e}")
+
+    # ── Fallback to SMTP ──────────────────────────────────────────────
+    if SMTP_HOST and SMTP_USER and SMTP_PASSWORD:
+        try:
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = subject
+            msg['From'] = FROM_EMAIL
+            msg['To'] = to_email
+            msg.attach(MIMEText(html_content, 'html'))
+
+            if SMTP_USE_TLS:
+                server = smtplib.SMTP(SMTP_HOST, SMTP_PORT)
+                server.starttls()
+            else:
+                server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT)
+
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(FROM_EMAIL, [to_email], msg.as_string())
+            server.quit()
+            print(f"[email] Sent via SMTP to {to_email}")
+            return True
+        except Exception as e:
+            print(f"[email] SMTP failed: {e}")
+
+    return False
 
 
 # ── Auth helpers ────────────────────────────────────────────────────────
