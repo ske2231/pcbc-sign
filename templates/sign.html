@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Sign Document - {{ doc.title }}{% endblock %}
+
+{% block content %}
+<div class="sign-container">
+    <div class="sign-header">
+        <h1>Document Signing</h1>
+        <p class="sign-subtitle">Ponca City Beauty College / Academy of Cosmetology Barbering and Esthetics</p>
+    </div>
+    
+    <div class="sign-doc-info">
+        <h2>{{ doc.title }}</h2>
+        <p>Please review the document below before signing.</p>
+    </div>
+    
+    <div class="pdf-viewer">
+        <embed src="{{ url_for('view_pdf', doc_id=doc.doc_id) }}" type="application/pdf" width="100%" height="700px">
+    </div>
+    
+    <div class="sign-form-card">
+        <h3>Signature Required</h3>
+        <p class="form-help">By signing below, you acknowledge that you have read and agree to the terms in this document.</p>
+        
+        <form method="POST" id="signForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="signer_name">Full Name *</label>
+                    <input type="text" id="signer_name" name="signer_name" 
+                           value="{{ doc.signer_name or '' }}" 
+                           placeholder="Enter your full legal name" required>
+                </div>
+                <div class="form-group">
+                    <label for="signer_email">Email Address</label>
+                    <input type="email" id="signer_email" name="signer_email" 
+                           value="{{ doc.signer_email or '' }}" 
+                           placeholder="your@email.com">
+                </div>
+            </div>
+            
+            <div class="signature-section">
+                <label>Draw Your Signature *</label>
+                <div class="signature-pad-container">
+                    <canvas id="signaturePad" class="signature-pad"></canvas>
+                    <button type="button" class="btn-clear" onclick="clearSignature()">Clear</button>
+                </div>
+                <input type="hidden" name="signature_data" id="signatureData">
+            </div>
+            
+            <div class="form-group">
+                <label for="typed_name">Type Your Name *</label>
+                <input type="text" id="typed_name" name="typed_name" 
+                       placeholder="Type your full name as your electronic signature" required>
+                <small class="form-help">This typed name serves as your legally binding electronic signature.</small>
+            </div>
+            
+            <div class="consent-box">
+                <p><strong>Consent to Electronic Signature:</strong></p>
+                <p>By clicking "Sign Document," you agree that your electronic signature is the legal equivalent of your manual signature. You consent to be legally bound by this agreement.</p>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-sign" onclick="return prepareSubmit()">
+                Sign Document
+            </button>
+        </form>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/signature_pad.js') }}"></script>
+<script>
+const canvas = document.getElementById('signaturePad');
+const ctx = canvas.getContext('2d');
+let isDrawing = false;
+let hasDrawn = false;
+
+function resizeCanvas() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width - 4;
+    canvas.height = 200;
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+}
+
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+    };
+}
+
+function startDrawing(e) {
+    e.preventDefault();
+    isDrawing = true;
+    hasDrawn = true;
+    const pos = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+}
+
+function draw(e) {
+    if (!isDrawing) return;
+    e.preventDefault();
+    const pos = getPos(e);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+}
+
+function stopDrawing() {
+    isDrawing = false;
+}
+
+canvas.addEventListener('mousedown', startDrawing);
+canvas.addEventListener('mousemove', draw);
+canvas.addEventListener('mouseup', stopDrawing);
+canvas.addEventListener('mouseout', stopDrawing);
+
+canvas.addEventListener('touchstart', startDrawing, { passive: false });
+canvas.addEventListener('touchmove', draw, { passive: false });
+canvas.addEventListener('touchend', stopDrawing);
+
+function clearSignature() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasDrawn = false;
+    document.getElementById('signatureData').value = '';
+}
+
+function prepareSubmit() {
+    const typedName = document.getElementById('typed_name').value.trim();
+    const signerName = document.getElementById('signer_name').value.trim();
+    
+    if (!signerName) {
+        alert('Please enter your full name.');
+        return false;
+    }
+    
+    if (!typedName) {
+        alert('Please type your name in the signature field.');
+        return false;
+    }
+    
+    if (hasDrawn) {
+        document.getElementById('signatureData').value = canvas.toDataURL('image/png');
+    }
+    
+    return true;
+}
+</script>
+{% endblock %}

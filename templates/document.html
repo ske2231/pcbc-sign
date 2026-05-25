@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}{{ document.title }} - PCBC Document Sign{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ document.title }}</h1>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<div class="two-column">
+    <div class="column-main">
+        <div class="card">
+            <h2>Document Preview</h2>
+            <div class="pdf-preview">
+                <embed src="{{ url_for('view_pdf', doc_id=document.id) }}" type="application/pdf" width="100%" height="600px">
+            </div>
+            <div class="card-actions">
+                <a href="{{ url_for('download_document', doc_id=document.id) }}" class="btn btn-secondary">Download Original</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Create Signing Link</h2>
+            <p class="form-help">Generate a unique link to send to a student for signing.</p>
+            <form method="POST" action="{{ url_for('create_sign_link', doc_id=document.id) }}" class="inline-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="signer_name">Student Name (optional)</label>
+                        <input type="text" id="signer_name" name="signer_name" placeholder="e.g., Jane Doe">
+                    </div>
+                    <div class="form-group">
+                        <label for="signer_email">Email (optional)</label>
+                        <input type="email" id="signer_email" name="signer_email" placeholder="jane@example.com">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Generate Sign Link</button>
+            </form>
+        </div>
+        
+        <div class="card">
+            <h2>Signing Requests</h2>
+            {% if sign_requests %}
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Signed</th>
+                            <th>Sign Link</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in sign_requests %}
+                        <tr>
+                            <td>
+                                {{ req.signer_name or 'Unassigned' }}
+                                {% if req.signer_email %}<br><small>{{ req.signer_email }}</small>{% endif %}
+                            </td>
+                            <td>
+                                <span class="badge badge-{{ 'success' if req.status == 'signed' else 'warning' }}">
+                                    {{ req.status|title }}
+                                </span>
+                            </td>
+                            <td>{{ req.created_at }}</td>
+                            <td>{{ req.signed_at or '-' }}</td>
+                            <td>
+                                {% if req.status == 'pending' %}
+                                <code class="token-display">{{ url_for('sign_document', token=req.token, _external=True) }}</code>
+                                <button class="btn btn-sm btn-secondary" onclick="copyLink('{{ url_for('sign_document', token=req.token, _external=True) }}')">Copy</button>
+                                {% else %}
+                                <span class="text-muted">Completed</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted">No signing requests created yet.</p>
+            {% endif %}
+        </div>
+        
+        <div class="card card-danger">
+            <h2>Danger Zone</h2>
+            <p class="text-muted">Deleting a document will permanently remove the file and all associated signatures and audit logs.</p>
+            <form method="POST" action="{{ url_for('delete_document', doc_id=document.id) }}" onsubmit="return confirm('Are you sure? This cannot be undone.')">
+                <button type="submit" class="btn btn-danger">Delete Document</button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="column-side">
+        <div class="card">
+            <h2>Document Info</h2>
+            <dl class="info-list">
+                <dt>Filename</dt>
+                <dd>{{ document.filename }}</dd>
+                <dt>Status</dt>
+                <dd><span class="badge badge-{{ 'success' if document.status == 'signed' else 'warning' }}">{{ document.status|title }}</span></dd>
+                <dt>Uploaded</dt>
+                <dd>{{ document.uploaded_at }}</dd>
+                <dt>Upload IP</dt>
+                <dd><code>{{ document.upload_ip or 'Unknown' }}</code></dd>
+            </dl>
+        </div>
+        
+        <div class="card">
+            <h2>Audit Trail</h2>
+            {% if audit_logs %}
+            <ul class="audit-list">
+                {% for log in audit_logs %}
+                <li class="audit-item">
+                    <div class="audit-action">{{ log.action }}</div>
+                    <div class="audit-meta">
+                        <span>{{ log.timestamp }}</span>
+                        {% if log.actor %}<span>by {{ log.actor }}</span>{% endif %}
+                    </div>
+                    {% if log.details %}<div class="audit-details"><small>{{ log.details }}</small></div>{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted">No audit entries.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function copyLink(url) {
+    navigator.clipboard.writeText(url).then(() => {
+        alert('Signing link copied to clipboard!');
+    }).catch(() => {
+        prompt('Copy this link:', url);
+    });
+}
+</script>
+{% endblock %}

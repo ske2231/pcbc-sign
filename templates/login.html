@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Login - PCBC Document Sign{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <h1>Admin Login</h1>
+            <p>Ponca City Beauty College<br>Document Signing System</p>
+        </div>
+        <form method="POST" class="login-form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+        </form>
+        <div class="login-hint">
+            <p>Default: <code>admin</code> / <code>ponca2024</code></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

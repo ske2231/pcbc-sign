@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: pcbc-document-sign
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_USERNAME
+        value: admin
+      # IMPORTANT: Generate your own password hash before deploying!
+      # Run this locally first: python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('your_password'))"
+      # Then paste the output below as the value for ADMIN_PASSWORD_HASH
+      - key: ADMIN_PASSWORD_HASH
+        value: scrypt:32768:8:1$Q21wQXrYFAtK2QNh$20a0a26b92fa6750c5aef3bb447155e87eb29540545d68fdb25a42a96b2fb14348b858e63caeb73a8be2b56c2486006bd852c99eecf6a0f8b3dae81a05d553e6

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Document Signed - PCBC{% endblock %}
+
+{% block content %}
+<div class="success-container">
+    <div class="success-card">
+        <div class="success-icon">&#10004;</div>
+        <h1>Thank You, {{ signer_name }}!</h1>
+        <p class="success-message">Your document has been successfully signed and recorded.</p>
+        
+        <div class="success-details">
+            <p><strong>Document:</strong> {{ sign_req.title }}</p>
+            <p><strong>Signed at:</strong> {{ sign_req.signed_at }}</p>
+            <p><strong>Reference:</strong> {{ sign_req.token[:8] }}...</p>
+        </div>
+        
+        <p class="success-footer">You may now close this window.</p>
+    </div>
+</div>
+{% endblock %}

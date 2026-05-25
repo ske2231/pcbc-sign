@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Document - PCBC Document Sign{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Upload New Document</h1>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">&larr; Back to Dashboard</a>
+</div>
+
+<div class="card">
+    <form method="POST" enctype="multipart/form-data" class="upload-form">
+        <div class="form-group">
+            <label for="title">Document Title *</label>
+            <input type="text" id="title" name="title" placeholder="e.g., Enrollment Agreement - Fall 2025" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="pdf_file">PDF File *</label>
+            <div class="file-input-wrapper">
+                <input type="file" id="pdf_file" name="pdf_file" accept=".pdf" required onchange="updateFileName(this)">
+                <div class="file-input-display">
+                    <span class="file-icon">&#128196;</span>
+                    <span id="file-name" class="file-name">Click to select a PDF file</span>
+                </div>
+            </div>
+            <small class="form-help">Maximum file size: 16MB. Only PDF files are accepted.</small>
+        </div>
+        
+        <button type="submit" class="btn btn-primary">
+            <span class="btn-icon">&#8593;</span> Upload Document
+        </button>
+    </form>
+</div>
+
+<script>
+function updateFileName(input) {
+    const nameSpan = document.getElementById('file-name');
+    if (input.files && input.files[0]) {
+        nameSpan.textContent = input.files[0].name;
+        nameSpan.classList.add('file-selected');
+    } else {
+        nameSpan.textContent = 'Click to select a PDF file';
+        nameSpan.classList.remove('file-selected');
+    }
+}
+</script>
+{% endblock %}
