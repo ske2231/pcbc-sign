@@ -869,43 +869,42 @@ def backup_database():
 def debug_email():
     """Test email configuration and show detailed diagnostics."""
     import smtplib
-    from email.mime.text import MIMEText
-    from email.mime.multipart import MIMEMultipart
+    import traceback
 
-    results = []
-    results.append(f"SMTP_HOST: {SMTP_HOST}")
-    results.append(f"SMTP_PORT: {SMTP_PORT}")
-    results.append(f"SMTP_USER: {SMTP_USER}")
-    results.append(f"SMTP_PASSWORD: {'SET' if SMTP_PASSWORD else 'NOT SET'}")
-    results.append(f"SMTP_USE_TLS: {SMTP_USE_TLS}")
-    results.append(f"FROM_EMAIL: {FROM_EMAIL}")
-    results.append(f"SENDGRID_API_KEY: {'SET' if SENDGRID_API_KEY else 'NOT SET'}")
-    results.append("")
+    try:
+        results = []
+        results.append(f"SMTP_HOST: {SMTP_HOST}")
+        results.append(f"SMTP_PORT: {SMTP_PORT}")
+        results.append(f"SMTP_USER: {SMTP_USER}")
+        results.append(f"SMTP_PASSWORD: {'SET' if SMTP_PASSWORD else 'NOT SET'}")
+        results.append(f"SMTP_USE_TLS: {SMTP_USE_TLS}")
+        results.append(f"FROM_EMAIL: {FROM_EMAIL}")
+        results.append(f"SENDGRID_API_KEY: {'SET' if SENDGRID_API_KEY else 'NOT SET'}")
+        results.append("")
 
-    # Test SMTP connection
-    if SMTP_HOST and SMTP_USER and SMTP_PASSWORD:
-        try:
-            if SMTP_USE_TLS:
-                server = smtplib.SMTP(SMTP_HOST, SMTP_PORT)
-                server.set_debuglevel(1)
-                server.starttls()
-            else:
-                server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT)
-                server.set_debuglevel(1)
+        # Test SMTP connection with short timeout
+        if SMTP_HOST and SMTP_USER and SMTP_PASSWORD:
+            try:
+                if SMTP_USE_TLS:
+                    server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10)
+                    server.starttls()
+                else:
+                    server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=10)
 
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            results.append("✅ SMTP LOGIN SUCCESS")
-            server.quit()
-        except Exception as e:
-            import traceback
-            results.append(f"❌ SMTP FAILED: {e}")
-            results.append("")
-            results.append("Full traceback:")
-            results.append(traceback.format_exc())
-    else:
-        results.append("❌ SMTP NOT CONFIGURED")
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                results.append("✅ SMTP LOGIN SUCCESS")
+                server.quit()
+            except Exception as e:
+                results.append(f"❌ SMTP FAILED: {e}")
+                results.append("")
+                results.append("Full traceback:")
+                results.append(traceback.format_exc())
+        else:
+            results.append("❌ SMTP NOT CONFIGURED")
 
-    return '<pre style="font-family:monospace;white-space:pre-wrap;padding:20px">' + '\n'.join(results) + '</pre>'
+        return '<pre style="font-family:monospace;white-space:pre-wrap;padding:20px">' + '\n'.join(results) + '</pre>'
+    except Exception as e:
+        return '<pre style="font-family:monospace;white-space:pre-wrap;padding:20px;color:red">ROUTE ERROR: ' + str(e) + '\n' + traceback.format_exc() + '</pre>'
 
 
 @app.route('/health')
